@@ -21,7 +21,7 @@ while True:
                 username = iproc['username']
                 name     = iproc['name']
                 pid      = iproc['pid']
-                if name in key_words and username == 'petavazohi':
+                if name in key_words and username == os.getenv('USER'):
                     p = psutil.Process(pid=pid)
                     p.kill()
     time.sleep(180)
