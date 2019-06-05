@@ -28,5 +28,5 @@ while True:
     if checked :
         wf = open(path+'WAITING','w')
         wf.close()
-        time.sleep(180)
+        time.sleep(30)
 
