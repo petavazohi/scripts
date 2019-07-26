@@ -23,7 +23,7 @@ def create_kpoints(length):
     wf.close()
     return
 
-def kpoint_manual(e_threshold,start,end,step,executable,nparal):
+def kpoint_manual(e_threshold,start,end,step,executable,nparal,ncore):
     # manual kmesh generation
     # in this case start = total number of kpoints to start with
     #              end   = maximum number of kpoints
@@ -64,7 +64,7 @@ def kpoint_manual(e_threshold,start,end,step,executable,nparal):
             incar['EDIFF' ] = 1e-4
             incar['NWRITE'] = 2
             incar['PREC'  ] = 'Accurate'
-            incar['NCORE' ] = 4
+            incar['NCORE' ] = ncore
             incar['SYSTEM'] = '-'.join(address.split('/')[-2:])
             incar.write("INCAR")
         runtime = execute(nparal,address,executable)
@@ -87,7 +87,7 @@ def kpoint_manual(e_threshold,start,end,step,executable,nparal):
     
 
 
-def kpoint_convergence(e_threshold,start,end,step,executable,nparal):
+def kpoint_convergence(e_threshold,start,end,step,executable,nparal,ncore):
     address = os.getcwd() 
     toten = []
     kmesh = []
@@ -97,7 +97,7 @@ def kpoint_convergence(e_threshold,start,end,step,executable,nparal):
         incar['EDIFF' ] = 1e-4
         incar['NWRITE'] = 2
         incar['PREC'  ] = 'Accurate'
-        incar['NCORE' ] = 4
+        incar['NCORE' ] = ncore
         incar['SYSTEM'] = '-'.join(address.split('/')[-2:])
         incar.write("INCAR")
     # create potcar here 
@@ -124,7 +124,7 @@ def kpoint_convergence(e_threshold,start,end,step,executable,nparal):
     print("VASP calculations converged with k points length %i and kmesh %s " % (klengths[conv_idx],kmesh[conv_idx]))
     return 
 
-def encut_convergence(e_threshold,start,end,step,executable,nparal):
+def encut_convergence(e_threshold,start,end,step,executable,nparal,ncore):
     address = os.getcwd()
     toten = []
     if not os.path.exists('KPOINTS'):
@@ -144,7 +144,7 @@ def encut_convergence(e_threshold,start,end,step,executable,nparal):
         incar['EDIFF' ] = 1e-5
         incar['NWRITE'] = 2
         incar['PREC'  ] = 'Accurate'
-        incar['NCORE' ] = 4
+        incar['NCORE' ] = ncore
 
         incar.write("INCAR")
         print("===================================================================================")
@@ -167,7 +167,7 @@ def encut_convergence(e_threshold,start,end,step,executable,nparal):
     wf.close()
     return
 
-def relax_structure(encut,kgrid,kmode,ismear,executable,nparal):
+def relax_structure(encut,kgrid,kmode,ismear,executable,nparal,ncore):
     address = os.getcwd()
     if not os.path.exists('INCAR'):
         incar = pychemia.code.vasp.VaspInput()
@@ -180,10 +180,8 @@ def relax_structure(encut,kgrid,kmode,ismear,executable,nparal):
             incar['PREC']    = 'Accurate'
             incar['ADDGRID'] = True    # additional support grid for augmentation charges
             incar['ISMEAR']  = ismear   # tetrahedron method with Blöchl corrections 
-            incar['ISTART']  = 0        # does not read WAVECAR
-            incar['LWAVE']   = False    # does not write WAVECAR
-            incar['EDIFF']   = 1e-06
-            incar['LREAL']   = 'a'      # projection in real space or reciprocal, a is automatic
+            incar['EDIFF']   = 1e-08
+#            incar['LREAL']   = 'a'      # projection in real space or reciprocal, a is automatic
             incar['NELMIN'] = 6         # minimum number of electronic steps
             incar['EDIFFG'] = -1E-03
             incar['NSW'] = 100
@@ -191,7 +189,7 @@ def relax_structure(encut,kgrid,kmode,ismear,executable,nparal):
             incar['ISIF'] = 3
             incar['ISYM'] = 2
             incar['SIGMA'] = 0.05
-            incar['NPAR' ] = int(nparal/16)
+            incar['NCORE' ] = ncore
             incar.write("INCAR")
     if kmode == None and kgrid == None:
         create_kpoints(30)
@@ -202,7 +200,7 @@ def relax_structure(encut,kgrid,kmode,ismear,executable,nparal):
     runtime = execute(nparal,address,executable)
     return
 
-def SCF(encut,kgrid,kmode,ismear,executable,nparal):
+def SCF(encut,kgrid,kmode,ismear,executable,nparal,ncore):
     address = os.getcwd()
     magmom = '' 
     try :
@@ -226,7 +224,7 @@ def SCF(encut,kgrid,kmode,ismear,executable,nparal):
     incar['NELMIN'] = 6         # minimum number of electronic steps
     incar['IBRION'] = -1         # how atoms are updated to move 
     incar['ISPIN'] = 2
-    incar['NCORE' ] = 4
+    incar['NCORE' ] = ncore
     incar['MAGMOM'] = magmom
     incar['SIGMA'] = 0.05
     incar.write("INCAR")
@@ -262,6 +260,7 @@ if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
     parser.add_argument("--structure",dest="structure",type=str,help='poscar structure that you want to run',default = 'POSCAR')
     parser.add_argument("-np" ,dest="np",type=int ,action="store", help="Number of MPI processes for the code",default = '1')
+    parser.add_argument("--ncore" ,dest="ncore",type=int ,action="store", help="NCORE value to be set in INCAR",default = '4')
     subparsers = parser.add_subparsers(dest='calc')
     parser_kpnt = subparsers.add_parser('kpoint_convergence')
     parser_kpnt.add_argument('--mode',type=str,default='auto')
@@ -288,12 +287,12 @@ if __name__ == "__main__" :
     args = parser.parse_args()
     if  args.calc == 'kpoint_convergence':
         if args.mode == 'auto':
-            kpoint_convergence(e_threshold=args.Ethreshold,start=args.Kstart,end=args.Kend,step=args.Kstep,executable=args.executable,nparal=args.np)
+            kpoint_convergence(e_threshold=args.Ethreshold,start=args.Kstart,end=args.Kend,step=args.Kstep,executable=args.executable,nparal=args.np,ncore=args.ncore)
         elif args.mode == 'manual':
-            kpoint_manual(e_threshold=args.Ethreshold,start=args.Kstart,end=args.Kend,step=args.Kstep,executable=args.executable,nparal=args.np)
+            kpoint_manual(e_threshold=args.Ethreshold,start=args.Kstart,end=args.Kend,step=args.Kstep,executable=args.executable,nparal=args.np,ncore=args.ncore)
     elif args.calc == 'encut_convergence':
-        encut_convergence(e_threshold=args.Ethreshold,start=args.Estart,end=args.Eend,step=args.Estep,executable=args.executable,nparal=args.np)
+        encut_convergence(e_threshold=args.Ethreshold,start=args.Estart,end=args.Eend,step=args.Estep,executable=args.executable,nparal=args.np,ncore=args.ncore)
     elif args.calc == 'structure_relax' :
-        relax_structure(encut=args.encut,kgrid=args.Kgrid,kmode=args.Kmode,ismear=args.ismear,executable=args.executable,nparal=args.np)
+        relax_structure(encut=args.encut,kgrid=args.Kgrid,kmode=args.Kmode,ismear=args.ismear,executable=args.executable,nparal=args.np,ncore=args.ncore)
     elif args.calc == 'scf':
-        SCF(encut=args.encut,kgrid=args.Kgrid,kmode=args.Kmode,ismear=args.ismear,executable=args.executable,nparal=args.np)
+        SCF(encut=args.encut,kgrid=args.Kgrid,kmode=args.Kmode,ismear=args.ismear,executable=args.executable,nparal=args.np,ncore=args.ncore)
