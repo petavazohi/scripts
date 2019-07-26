@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import pymatgen.io.vasp as vasp
 import pymatgen.electronic_structure.plotter as plotter
