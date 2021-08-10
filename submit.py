@@ -41,8 +41,8 @@ parser.add_argument("-t",
 args = parser.parse_args()   
 nparal = args.np
 max_jobs = args.max_jobs
-
-if args.template is None:
+finished = 0
+if args.template is None and not os.path.exists('template.pbs'):
     wf = open('template.pbs','w')
     wf.write("""
     source ~/.bashrc
@@ -59,12 +59,13 @@ rf.close()
 to_submit=[]
 for ifile in structures_init:
     ifile = ifile.replace('\n','')
-
+    original_ifile = ifile
     path = ifile+'_relax'
     if not os.path.exists(path):
         os.mkdir(path)
         
     for ixc in args.xc:
+        ifile = original_ifile
         jobname = (ixc+'-'+ifile).replace('.vasp','').replace('.ascii','')
         path = ifile+'_relax'
         if not os.path.exists(path+os.sep+ixc):
@@ -72,6 +73,7 @@ for ifile in structures_init:
             
         path = ifile+'_relax'+os.sep+ixc
         if os.path.exists(path+os.sep+"relax_report.json"):
+            finished +=1
             continue
         else :
             contcar = ''
@@ -88,8 +90,11 @@ for ifile in structures_init:
                 ifile = 'CONTCAR'
             elif len(poscar) !=0:
                 ifile = 'POSCAR'
-            elif not os.path.exists(path+os.sep+ifile):
-                shutil.copy(ifile,path+os.sep+ifile)
+            
+            else:
+                ifile = original_ifile
+                if not os.path.exists(path+os.sep+ifile):
+                    shutil.copy(ifile,path+os.sep+ifile)
                 
             job = pychemia.runner.PBSRunner(template='template.pbs',jobname=jobname,workdir=path)
             job.template_text = job.template_text.replace('{poscar}','"'+ifile+'"')
@@ -104,6 +109,7 @@ for ifile in structures_init:
             to_submit.append(job)
     
 counter = 1
+print("%d of the jobs already finished"%finished)
 while True:
     jobs_submitted = pychemia.runner.get_jobs(user=os.getenv('USER'))
     njobs = len(jobs_submitted)
@@ -111,7 +117,7 @@ while True:
     if njobs < max_jobs and len(to_submit) != 0 :
         job = to_submit[0]
         current_time = datetime.datetime.now()
-        print("{: >20} {: >30} {: >20} {: >20} {: >20} {: >20}".format(counter,current_time,job.jobname,job.queue,job.nodes,job.ppn))
+        print("{: >20} {} {: >30} {: >20} {: >20} {: >20}".format(counter,current_time,job.jobname,job.queue,job.nodes,job.ppn))
         try :
             to_submit[0].submit()
         except :

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+mkdir to_plot
+cp bands/PROCAR to_plot
+cp bands/KPOINTS to_plot
+cp bands/POSCAR to_plot
+cp dos/OUTCAR to_plot
+cp dos/vasprun.xml to_plot
+
