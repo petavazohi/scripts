@@ -1,9 +1,9 @@
 #/bin/bash
 
-for ipot in $(find . -name POTCAR)
-do
-    grep 'TITEL\s*=\s*PAW' $ipot >> ${ipot}_options
-done
+# for ipot in $(find . -name POTCAR)
+# do
+#     grep 'TITEL\s*=\s*PAW' $ipot >> ${ipot}_options
+# done
 
    
 
