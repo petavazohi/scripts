@@ -2,13 +2,14 @@
 
 from pymatgen.io import vasp
 import numpy as np
+from pymatgen.analysis.structure_analyzer import SpacegroupAnalyzer
 import pymatgen
 
 run = vasp.Vasprun('vasprun.xml')
 outcar = vasp.Outcar('OUTCAR')
 st = run.final_structure
 symbols = np.array([x.value for x in st.species])
-sa = pymatgen.analysis.structure_analyzer.SpacegroupAnalyzer(st)
+sa = SpacegroupAnalyzer(st)
 print('**************')
 print("conventional cell")
 print(sa.get_conventional_standard_structure())

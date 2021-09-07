@@ -1,5 +1,41 @@
 #/bin/bash
 
+for idir in LDA PBE PBEsol
+do
+    for jdir in DFT+U  regular
+    do
+	for kdir in AFM-checkerboard  AFM-striped  FM
+	do
+	    echo ${idir}-${jdir}-${kdir}
+	    grep TOTEN ${idir}/${jdir}/${kdir}/OUTCAR | tail -1 | awk '{print $5}'
+	done
+    done
+done
+
+
+
+
+
+# for idir in LDA PBE PBEsol
+# do
+#     cd ${idir}
+#     for jdir in DFT+U  regular
+#     do
+# 	cd ${jdir}
+# 	for kdir in AFM-checkerboard  AFM-striped  FM
+# 	do
+# 	    cd ${kdir}
+# 	    echo ${idir}-${jdir}-${kdir}
+# 	    get_calculation_info.py > ${idir}-${jdir}-${kdir}.log
+# 	    mv ${idir}-${jdir}-${kdir}.log ../../../
+# 	    cd ..
+# 	done
+# 	cd ..
+#     done
+#     cd ..
+# done
+
+	    
 # for ipot in $(find . -name POTCAR)
 # do
 #     grep 'TITEL\s*=\s*PAW' $ipot >> ${ipot}_options
