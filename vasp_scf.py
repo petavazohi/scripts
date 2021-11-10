@@ -11,7 +11,7 @@ parser.add_argument("-np" ,dest="np",type=int ,action="store", help="Number of M
 parser.add_argument("-xc",dest="xc",type=str,help='exchange correlation functional',default = 'PBE')
 parser.add_argument('--incar_encut',dest='incar_encut',help="path to the extra variable you want to include in encut convergence",default ='none')
 parser.add_argument('--incar_kpoint',dest='incar_kpoint',help="path to the extra variable you want to include in kpoint convergence",default='none')
-parser.add_argument('--incar_relax',dest='incar_relax',help="path to the extra variable you want to include in relaxation",default='none')
+parser.add_argument('--incar_static',dest='incar_static',help="path to the extra variable you want to include in statication",default='none')
 parser.add_argument('--potcar_options',dest='psp_options',nargs='+',help="The options want to be used for pseudo potentials, eg: --potcar_options O_h Cu_pv")
 parser.add_argument('--tags',dest='tags',nargs='+',help='If you want to have a tag for all calculations for example ENCUT 250', default=None)
 
@@ -57,12 +57,12 @@ if args.psp_options:
 
 extra_vars_encut = {}
 extra_vars_kpoint = {}
-extra_vars_relax = {}
+extra_vars_static = {}
 
 for ikey in extra_vars:
     extra_vars_encut[ikey] = extra_vars[ikey]
     extra_vars_kpoint[ikey] = extra_vars[ikey]
-    extra_vars_relax[ikey] = extra_vars[ikey]
+    extra_vars_static[ikey] = extra_vars[ikey]
     
 if args.incar_encut != 'none' :
     incar_encut = pychemia.code.vasp.read_incar(str(args.incar_encut))
@@ -76,11 +76,11 @@ if args.incar_kpoint != 'none' :
     for tag in incar_kpoint:
         extra_vars_kpoint[tag] = incar_kpoint[tag]
 
-if args.incar_relax != 'none' :
-    incar_relax = pychemia.code.vasp.read_incar(str(args.incar_relax))
-    extra_vars_relax = {}
-    for tag in incar_relax:
-        extra_vars_relax[tag] = incar_relax[tag]
+if args.incar_static != 'none' :
+    incar_static = pychemia.code.vasp.read_incar(str(args.incar_static))
+    extra_vars_static = {}
+    for tag in incar_static:
+        extra_vars_static[tag] = incar_static[tag]
 
 
 
@@ -95,7 +95,7 @@ if 'ENCUT' in extra_vars:
     encut = int(extra_vars['ENCUT'])
     del extra_vars['ENCUT']
     del extra_vars_kpoint['ENCUT']
-    del extra_vars_relax['ENCUT']
+    del extra_vars_static['ENCUT']
                 
 elif not os.path.exists('encut_report.json'):
     encut_conv = pychemia.code.vasp.task.ConvergenceCutOffEnergy(structure=st,
@@ -140,16 +140,15 @@ else :
     rf.close()
     kgrid = kpoint_data['output']['best_kp_grid']
 
-relax = pychemia.code.vasp.task.IonRelaxation(structure=st,
-                                              workdir='.',
-                                              target_forces=1e-3,
-                                              executable='vasp_std',
-                                              encut=encut,
-                                              kp_grid=kgrid,
-                                              pspdir=pspdir,
-                                              max_calls=20,
-                                              extra_vars=extra_vars_relax,
-                                              psp_options=psp_options)
-relax.run(args.np)
-relax.save('relax_report.json')
+static = pychemia.code.vasp.task.StaticCalculation(structure=st,
+                                                   workdir='.',
+                                                   executable='vasp_std',
+                                                   encut=encut,
+                                                   kpoints=KPoints(kmode='gamma', grid=kgrid),
+                                                   extra_incar=extra_vars_static,
+                                                   pspdir=pspdir,
+                                                   psp_options=psp_options)
+                                                   
+static.run(args.np)
+static.save('static_report.json')
 

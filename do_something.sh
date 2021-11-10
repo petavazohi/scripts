@@ -1,25 +1,104 @@
 #/bin/bash
 
-for idir in LDA PBE PBEsol
+
+for ijob in $(qstat -u petavazohi | grep MBJ | awk '{ print $1 }' | awk -F '.' '{ print $1}')
 do
-    for jdir in DFT+U  regular
-    do
-	for kdir in AFM-checkerboard  AFM-striped  FM
-	do
-	    echo ${idir}-${jdir}-${kdir}
-	    grep TOTEN ${idir}/${jdir}/${kdir}/OUTCAR | tail -1 | awk '{print $5}'
-	done
-    done
+    qdel $ijob
 done
 
 
 
 
+# mkdir MoS2-bulk
+# for idir in [0-9].*
+# do
+#     echo $idir
+#     cp ${idir}/bands/POSCAR MoS2-bulk/${idir}.POSCAR
+# done
 
-# for idir in LDA PBE PBEsol
+
+
+# mkdir /tmp/MoS2
+# for idir in 0 1 11 12 13 14  15  2  3  4  5  6  7  8  9
+# do
+#     echo $idir
+#     mkdir /tmp/MoS2/${idir}
+#     cp $idir/bands/CONTCAR /tmp/MoS2/${idir}
+# done
+
+    
+
+
+
+
+
+
+
+
+
+# for idir in LDA  PBE  PBEsol
+# do
+#     for jdir in mp-13_Fe  mp-19035_BaFeO3  mp-21078_Fe3Ge  mp-510624_SrFeO3  mp-778_Fe2P
+#     do
+# 	for kdir in DFT+U  regular
+# 	do
+# 	    for ldir in bands  dos  relax  scf
+# 	    do
+# 		cp MCMC_selected/${idir}/${jdir}-${idir}/${kdir}/${ldir}/CONTCAR DataAvailnpj/exploration_stage/${idir}/${jdir}/${kdir}/${ldir}/CONTCAR
+# 		echo ${idir}-${jdir}-${kdir}-${ldir}
+# 	    done
+# 	done
+#     done
+# done
+
+# for idir in LDA  PBE  PBEsol
+# do
+#     for jdir in mp-1105372-Fe5SiB2   mp-3805-AlFe2B2   mp-9913-Fe5PB2
+#     do
+# 	for kdir in DFT+U  regular
+# 	do
+# 	    cp evaluation_stage/${jdir}/${idir}/${kdir}/CONTCAR DataAvailnpj/1evaluation_stage/${idir}/${jdir}/${kdir}/relax/CONTCAR
+# 	    echo ${idir}-${jdir}-${kdir}-${ldir}
+# 	done
+#     done
+# done
+
+
+# for idir in LDA  PBE  PBEsol
+# do
+#     for jdir in mp-568961-BaFe2As2
+#     do
+# 	for kdir in DFT+U   regular 
+# 	do
+# 	    for ldir in AFM-checkerboard  AFM-striped  FM
+# 	    do
+# 		cp  evaluation_stage/${jdir}/${idir}/${kdir}/${ldir}/INCAR  DataAvailnpj/evaluation_stage/${idir}/${jdir}/${kdir}/${ldir}/INCAR
+# 		echo ${idir}-${jdir}-${kdir}-${ldir}
+# 	    done
+# 	done
+#     done
+# done
+
+
+# For idir in LDA PBE PBEsol
+# do
+#     for jdir in DFT+U  regular
+#     do
+# 	for kdir in AFM-checkerboard  AFM-striped  FM
+# 	do
+# 	    echo ${idir}-${jdir}-${kdir}
+# 	    grep TOTEN ${idir}/${jdir}/${kdir}/OUTCAR | tail -1 | awk '{print $5}'
+# 	done
+#     done
+# done
+
+
+
+
+# for idir in LDA #PBE PBEsol
 # do
 #     cd ${idir}
-#     for jdir in DFT+U  regular
+#     for jdir in DFT+U  #regular
 #     do
 # 	cd ${jdir}
 # 	for kdir in AFM-checkerboard  AFM-striped  FM
