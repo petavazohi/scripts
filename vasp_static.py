@@ -41,12 +41,15 @@ elif args.xc == 'SCAN':
 elif args.xc == 'MBJ':
     pspdir = 'potpaw_PBE'
     extra_vars['METAGGA']='MBJ'
+    extra_vars['ALGO']='A'
 elif args.xc == "R2SCAN":
     pspdir = 'potpaw_PBE'
     extra_vars['METAGGA']='R2SCAN'
+    extra_vars['ALGO']='A'
 elif args.xc == "RSCAN":
     pspdir = 'potpaw_PBE'
     extra_vars['METAGGA']='RSCAN'
+    extra_vars['ALGO']='A'
 
 extra_vars['NBANDS'] = ' '
 

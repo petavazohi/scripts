@@ -1,9 +1,14 @@
 #/bin/bash
 
 
-for ijob in $(qstat -u petavazohi | grep MBJ | awk '{ print $1 }' | awk -F '.' '{ print $1}')
+# for ijob in $(qstat -u petavazohi | grep MBJ | awk '{ print $1 }' | awk -F '.' '{ print $1}')
+# do
+#     qdel $ijob
+# done
+
+for idir in mp-*
 do
-    qdel $ijob
+    rm ${idir}/MBJ/*
 done
 
 
