@@ -17,7 +17,12 @@ parser.add_argument('--potcar_options',dest='psp_options',nargs='+',help="The op
 parser.add_argument('--tags',dest='tags',nargs='+',help='If you want to have a tag for all calculations for example ENCUT 250', default=None)
 
 args = parser.parse_args()
+
 extra_vars = {}
+extra_vars_encut = {}
+extra_vars_kpoint = {}
+extra_vars_static = {"EDIFF":1e-8}
+
 if args.tags is not None:
     for itag in range(0,len(args.tags),2):
         key = args.tags[itag]
@@ -59,9 +64,6 @@ if args.psp_options:
     for option in args.psp_options:
         psp_options[option.split('_')[0]] = option.split('_')[1]
 
-extra_vars_encut = {}
-extra_vars_kpoint = {}
-extra_vars_static = {"EDIFF":1e-8}
 
 for ikey in extra_vars:
     extra_vars_encut[ikey] = extra_vars[ikey]
