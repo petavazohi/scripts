@@ -4,6 +4,7 @@ import pychemia
 import argparse
 import json
 import os
+KPoints = pychemia.crystal.KPoints
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--structure",dest="structure",type=str,help='poscar structure that you want to run',default = 'POSCAR')
@@ -60,7 +61,7 @@ if args.psp_options:
 
 extra_vars_encut = {}
 extra_vars_kpoint = {}
-extra_vars_static = {}
+extra_vars_static = {"EDIFF":1e-8}
 
 for ikey in extra_vars:
     extra_vars_encut[ikey] = extra_vars[ikey]
