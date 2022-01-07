@@ -66,7 +66,7 @@ class CalcDatabase(pychemia.db.PyChemiaDB):
 
     def extract_data(self, path, symprec=1e-5):
         path = os.getcwd() + os.sep + path
-        path = path.replace("{}.{}".format(os.sep, os.sep))
+        path = path.replace("{}.{}".format(os.sep, os.sep), os.sep)
         dirs = os.listdir(path)
         if "DON_NOT_ANALYZE" in [x.upper() for x in dirs]:
             return
@@ -108,7 +108,7 @@ class CalcDatabase(pychemia.db.PyChemiaDB):
         properties['crystal_symmetry'] = crystal.get_space_group_type()
         properties['wyckoff_analysis'] = get_wyckoffs(
             structure, symprec=symprec)
-
+        
         return {'structure': structure,
                 'properties': properties,
                 'status': status}
@@ -123,8 +123,36 @@ class CalcDatabase(pychemia.db.PyChemiaDB):
                         structure=data['structure'],
                         properties=data['properties'],
                         status=data['status'])
+        return
 
+    def to_excel(self, filename="xc_db_analysis.xlsx"):
+        
+        for ientry in self.entries.find({'$and':[
+                {'status.status.relaxed':True},
+                {'status.status.kpoint_converged': True},
+                {'status.status.encut_converged':True}]}):
+            ret = []
+            
+            _id = ientry['_id']
+            
+            
+        return
 
+    def to_json(self, filename="xc_db_analysis.json"):
+        ret = []
+        # for ientry in self.entries.find({'$and':[
+        #         {'status.status.relaxed':True},
+        #         {'status.status.kpoint_converged': True},
+        #         {'status.status.encut_converged':True}]}):
+        for ientry in self.entries.find({'status.status.relaxed':True}):
+                        
+            ientry['_id'] = str(ientry['_id'])
+            ret.append(ret)
+        with open(filename, 'w') as wf:
+            json.dump(ret, wf, sort_keys=True, indent=4, separators=(',', ': '))
+        return 
+
+    
 def check_finished(path):
     if os.path.exists(path + os.sep + 'OUTCAR'):
         with open(path + os.sep + 'OUTCAR') as rf:
@@ -232,8 +260,8 @@ def get_report(path):
     else:
         report['status']['relaxed'] = False
     print(
-        "path : {: >30}| kpoint : {: >5} | encut : {: >5}| relax : {: >5}|".format(
-            path.split('/./')[-1],
+        "path : {: <50}| kpoint : {: >5} | encut : {: >5}| relax : {: >5}|".format(
+            (os.sep).join(path.split(os.sep)[-4:]),
             report['status']['kpoint_converged'],
             report['status']['encut_converged'],
             report['status']['relaxed']))
@@ -289,7 +317,13 @@ if __name__ == "__main__":
         type=float,
         help="Length threshold for symmtery analysis",
         default=1e-5)
-
+    parser.add_argument(
+        "--mode",
+        dest='mode',
+        nargs='+',
+        help="what is expected from the script select from:\n update, export",
+        default=['export'])
+    
     args = parser.parse_args()
 
     db_settings = dict(name=args.name,
@@ -304,5 +338,10 @@ if __name__ == "__main__":
         args.user,
         args.passwd,
         calc_type=args.job_type)
-    db.check_dirs(args.path)
+    for mode in args.mode:
+        if mode in ['update', 'initiate']:
+            db.check_dirs(args.path)
+        elif mode == 'export':
+            db.to_json()
+        
             

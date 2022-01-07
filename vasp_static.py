@@ -44,18 +44,25 @@ elif args.xc == 'SCAN':
     extra_vars['METAGGA']="SCAN"
     extra_vars['ALGO']='A'
     extra_vars['ISMEAR']=0
+    extra_vars['LASPH'] =True
 elif args.xc == 'MBJ':
     pspdir = 'potpaw_PBE'
     extra_vars['METAGGA']='MBJ'
     extra_vars['ALGO']='A'
+    extra_vars['ISMEAR']=0
+    extra_vars['LASPH'] =True
 elif args.xc == "R2SCAN":
     pspdir = 'potpaw_PBE'
     extra_vars['METAGGA']='R2SCAN'
     extra_vars['ALGO']='A'
+    extra_vars['ISMEAR']=0
+    extra_vars['LASPH'] =True
 elif args.xc == "RSCAN":
     pspdir = 'potpaw_PBE'
     extra_vars['METAGGA']='RSCAN'
     extra_vars['ALGO']='A'
+    extra_vars['ISMEAR']=0
+    extra_vars['LASPH'] =True
 
 extra_vars['NBANDS'] = ' '
 
