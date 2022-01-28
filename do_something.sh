@@ -6,12 +6,11 @@
 #     qdel $ijob
 # done
 
+
 for idir in mp-*
 do
-    rm ${idir}/MBJ/*
+    cp ${idir}/LDA/*init.vasp ${idir}/MBJ/
 done
-
-
 
 
 # mkdir MoS2-bulk

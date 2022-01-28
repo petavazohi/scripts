@@ -13,6 +13,7 @@ parser.add_argument("-xc",dest="xc",type=str,help='exchange correlation function
 parser.add_argument('--incar_encut',dest='incar_encut',help="path to the extra variable you want to include in encut convergence",default ='none')
 parser.add_argument('--incar_kpoint',dest='incar_kpoint',help="path to the extra variable you want to include in kpoint convergence",default='none')
 parser.add_argument('--incar_static',dest='incar_static',help="path to the extra variable you want to include in statication",default='none')
+parser.add_argument('--kgrid', dest='kgrid', nargs=3, help="k space grid for sampling", default=None)
 parser.add_argument('--potcar_options',dest='psp_options',nargs='+',help="The options want to be used for pseudo potentials, eg: --potcar_options O_h Cu_pv")
 parser.add_argument('--tags',dest='tags',nargs='+',help='If you want to have a tag for all calculations for example ENCUT 250', default=None)
 
@@ -130,8 +131,9 @@ else :
     rf.close()
     encut = encut_data['output']['best_encut']
 
-    
-if not os.path.exists('kpoint_report.json'):
+if args.kgrid is not None:
+    kgrid = args.kgrid
+elif not os.path.exists('kpoint_report.json'):
     kpt_conv = pychemia.code.vasp.task.ConvergenceKPointGrid(structure=st,
                                                              workdir='.',
                                                              executable='vasp_std',
