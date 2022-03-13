@@ -12,28 +12,23 @@ import string
 from re import findall
 from collections import OrderedDict
 import pandas as pd
+import pymatgen.io.cif as cif
 
-class CalcDatabase(pychemia.db.PyChemiaDB):
+class ICSDDatabase(pychemia.db.PyChemiaDB):
     def __init__(
             self,
-            name='calc_database',
+            name='icsd',
             host='localhost',
             port=27020,
             user=None,
             passwd=None,
             ssl=False,
-            replicaset=None,
-            calc_type='relax'):
+            replicaset=None):
         super().__init__(name, host, port, user, passwd, ssl,
                          replicaset)
 
-        self.calc_type = calc_type
         self._symprec = 1e-5
         self._verbose = True
-        if self.calc_type == 'relax':
-            self.strict = True
-        else:
-            self.strict = False
         self.paths = []
 
     def symprec(self, symprec=1e-5):
@@ -50,13 +45,10 @@ class CalcDatabase(pychemia.db.PyChemiaDB):
 
     def check_dirs(self, path='.'):
         dirs = os.listdir(path)
-        if "DO_NOT_ANALYZE" in [x.upper() for x in dirs]:
-            return
         for idir in dirs:
             if os.path.isdir(path + os.sep + idir):
-                if contains_calculation(path + os.sep + idir, self.strict):
+                if contains_cif(path + os.sep + idir):
                     self.paths.append(path + os.sep + idir)
-                    # self.update_path(path + os.sep + idir)
                 self.check_dirs(path + os.sep + idir)
 
     def run(self, nproc=1):
@@ -71,20 +63,22 @@ class CalcDatabase(pychemia.db.PyChemiaDB):
 
 
     def update_path(self, data):
-        entry = self.entries.find_one({'properties.path': data['properties']['path']})
+        entry = self.entries.find_one({'$and': [{"properties.code_ICSD":data['properties']['code_ICSD']},
+                                                {"properties.standardized":data['properties']["standardized"]},
+                                                {"properties.theoretical":data['properties']["theoretical"]}
+            ]})
+        
         if entry is None:
             self.insert(**data)
         else:
-            self.update(entry,
+            self.update(entry['_id'],
                         structure=data['structure'],
-                        properties=data['properties'],
-                        status=data['status'])
+                        properties=data['properties'],)
         return
 
     def to_json(self, filename="xc_db_analysis.json"):
         ret = []
-        for ientry in self.entries.find({'status.status.relaxed': True}):
-
+        for ientry in self.entries.find():
             ientry['_id'] = str(ientry['_id'])
             ret.append(ientry)
         with open(filename, 'w') as wf:
@@ -99,119 +93,54 @@ class CalcDatabase(pychemia.db.PyChemiaDB):
         return
 
 
-def contains_calculation(path, strict=True):
+def contains_cif(path):
     dirs = os.listdir(path)
-    if not strict:
-        if "POSCAR" in dirs or any(['.vasp' in x for x in dirs]):
-            return True
-        else:
-            return False
+    if  any(['.cif' in x for x in dirs]):
+        return True
     else:
-        if ("KPOINTS" in dirs and
-            "INCAR" in dirs and
-            "POSCAR" in dirs and
-            "POTCAR" in dirs):
-            return True
-        else:
-            return False
-
+        return False
     
 
 def extract_data(path, symprec=1e-5):
+    '''This extract assumes there is only one file in each directory
+    needs to change
+    '''
     path = os.getcwd() + os.sep + path
     path = path.replace("{}.{}".format(os.sep, os.sep), os.sep)
     dirs = os.listdir(path)
-    if "DON_NOT_ANALYZE" in [x.upper() for x in dirs]:
-        return
-
-    init_poscar = ""
     for ifile in dirs:
-        if 'init' in ifile:
-            init_poscar = ifile
-    if init_poscar == "" :
-        init_poscar = "POSCAR"
-
-        
-    structure = pychemia.code.vasp.read_poscar(path + os.sep + init_poscar)
-    crystal = pychemia.crystal.CrystalSymmetry(structure)
+        if ".cif" in ifile:
+            break
+    print(path+os.sep+ifile)
+    cif_item = cif.CifParser(path+os.sep+ifile)
+    structure = cif_item.get_structures()[0]
+    symbols = [site.element.value for site in structure.species]
+    cell = structure.lattice.matrix
+    reduced = structure.frac_coords
+    structure = pychemia.core.Structure(cell=cell, symbols=symbols, reduced=reduced)
+    cif_dict = cif_item.as_dict()
     properties = {'path': path}
-    status = get_report(path)
-    if os.path.exists(path + os.sep + "INCAR"):
-        incar = pychemia.code.vasp.read_incar(
-            path + os.sep + "INCAR").variables
-        properties['incar'] = incar
-    if os.path.exists(path + os.sep + "KPOINTS"):
-        kpoints = pychemia.code.vasp.read_kpoints(
-            path + os.sep + "KPOINTS").to_dict
-        properties['kpoints'] = kpoints
-    if os.path.exists(
-            path +
-            os.sep +
-            "CONTCAR") and status['status']['relaxed']:
-        final_structure = pychemia.code.vasp.read_poscar(
-            path + os.sep + "CONTCAR")
-        final_structure.reduced[final_structure.reduced.round(3) >= 1] -= 1
-        final_structure.reduced[final_structure.reduced.round(3) < 0] += 1
-        final_crystal = pychemia.crystal.CrystalSymmetry(final_structure)
-        final_crystal_family = final_crystal.crystal_system(symprec)
-        properties['final'] = {
-            'structure': final_structure.to_dict,
-            'lattice': lattice_to_dict(final_structure.lattice),
-            'crystal_family': final_crystal_family,
-            'crystal_symmetry': final_crystal.get_space_group_type(symprec),
-            'wyckoff_analysis': get_wyckoffs(
-                structure,
-                symprec=symprec),
-            'lattice_degrees_of_freedom': get_lattice_degrees_of_freedom(
-                final_crystal_family.lower(), final_structure.lattice),
-            }
-    if os.path.exists(
-            path +
-            os.sep +
-            "vasprun.xml") and status['status']['relaxed']:
-        vasprun = pychemia.code.vasp.VaspXML(path + os.sep + "vasprun.xml")
-        if not vasprun.has_diverged:
-            properties['band_gap'] = vasprun.band_gap
-            gap = vasprun.band_gap['total']['gap']
-            if  gap == 0 :
-                properties['conductivity'] = "conductor"
-            elif gap > 0 and gap <= 1 :
-                properties['conductivity'] = "semiconductor"
-            else:
-                properties['conductivity'] = "insulator"
-            properties['xc'] = get_xc(vasprun.potcar_info, incar)
-        else :
-            status['status']['relaxed'] = False
+    properties['cif'] = cif_dict
+    properties['bib'] = cif_item.get_bibtex_string()
+    icsd = [cif_dict[keys]['_database_code_ICSD'] for keys in cif_dict][0]
+    properties['code_ICSD'] = icsd
+    properties['standardized'] = 'experimental' not in ifile
+    properties['theoretical'] = 'theoritical' in ifile
+    crystal = pychemia.crystal.CrystalSymmetry(structure)
     mp_id = get_mp_id(path)
+    crystal_family = crystal.crystal_system(symprec)
     properties['mp_id'] = mp_id
-    properties['time'] = time.ctime(os.path.getmtime(path))
-    if init_poscar:
-        init_structure = pychemia.code.vasp.read_poscar(
-            path + os.sep + init_poscar)
-        init_structure.reduced[init_structure.reduced.round(3) >= 1] -= 1
-        init_structure.reduced[init_structure.reduced.round(3) < 0] += 1
-        init_crystal = pychemia.crystal.CrystalSymmetry(init_structure)
-        init_crystal_family = init_crystal.crystal_system(symprec)
-        properties['initial'] = {
-            'structure': init_structure.to_dict,
-            'lattice': lattice_to_dict(init_structure.lattice),
-            'crystal_family': init_crystal_family,
-            'crystal_symmetry': init_crystal.get_space_group_type(symprec)}
+    properties['crystal_family'] = crystal_family
+    properties['crystal_symmetry'] = crystal.get_space_group_type(symprec)
+    properties['wyckoff_analysis'] =  get_wyckoffs(
+        structure,
+        symprec=symprec)
+    properties['lattice_degrees_of_freedom'] = get_lattice_degrees_of_freedom(
+        crystal_family.lower(), structure.lattice)
+    # print(f"mp_id : {mp_id:<30}| icsd code  : {icsd:>30}")
     return {'structure': structure,
-            'properties': properties,
-            'status': status['status']}
-
-
-def check_finished(path):
-    if os.path.exists(path + os.sep + 'OUTCAR'):
-        with open(path + os.sep + 'OUTCAR') as rf:
-            text = rf.read()
-        if "I REFUSE TO CONTINUE WITH THIS SICK JOB" in text or "copy CONTCAR" in text:
-            return False
-        elif "reached required accuracy" in text and "Major page faults" in text:
-            return True
-    else:
-        return False
+        'properties': properties,
+        }
 
 
 def lattice_to_dict(lattice):
@@ -223,22 +152,6 @@ def lattice_to_dict(lattice):
             'gamma': lattice.gamma,
             }
     
-def get_xc(potcar_info, incar):
-    psp = [potcar_info[x]['pseudopotential'] for x in potcar_info]
-    has_pbe = any(['PBE' in x for x in psp])
-    if not has_pbe:
-        return "LDA"
-    else:
-        if "GGA" not in incar and 'METAGGA' not in incar:
-            return "PBE"
-        elif "GGA" in incar:
-            if incar['GGA'] == 'PS':
-                return "PBEsol"
-            elif incar['GGA'] == 'AM':
-                return 'AM05'
-        elif "METAGGA" in incar:
-            return incar['METAGGA']
-
     
 def get_wyckoffs(structure, symprec=1e-5):
     crystal_symmetry = pychemia.crystal.CrystalSymmetry(structure)
@@ -320,45 +233,6 @@ def get_mp_id(path):
             mp_id = findall("mp-[0-9]*", x)[0]
     return mp_id
 
-
-def get_report(path, verbose=True):
-    # verbose=False
-    report = {}
-    report['status'] = {}
-    if os.path.exists(path + os.sep + "kpoint_report.json"):
-        # with open(path + os.sep + "kpoint_report.json", 'r') as rf:
-        #     kp = json.load(rf)
-        #     report['kpoint'] = kp["output"]
-        report['status']['kpoint_converged'] = True
-    else:
-        report['status']['kpoint_converged'] = False
-    if os.path.exists(path + os.sep + "encut_report.json"):
-        # with open(path + os.sep + "encut_report.json", 'r') as rf:
-        #     ecut = json.load(rf)
-        #     report['ecut'] = ecut["output"]
-        report['status']['encut_converged'] = True
-    else:
-        report['status']['encut_converged'] = False
-    if os.path.exists(
-            path +
-            os.sep +
-            "relax_report.json") and check_finished(path):
-        # with open(path + os.sep + "relax_report.json", 'r') as rf:
-        #     relax = json.load(rf)
-        #     report['relax'] = relax["output"]
-        report['status']['relaxed'] = True
-    else:
-        report['status']['relaxed'] = False
-    if verbose:
-        print(
-            "path : {: <50}| kpoint : {: >5} | encut : {: >5}| relax : {: >5}|".format(
-                (os.sep).join(path.split(os.sep)[-4:]),
-                report['status']['kpoint_converged'],
-                report['status']['encut_converged'],
-                report['status']['relaxed']))
-    return report
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -367,12 +241,6 @@ if __name__ == "__main__":
         type=str,
         help='Path where you want the analysis to be done',
         default='.')
-    parser.add_argument(
-        "--job",
-        dest="job_type",
-        type=str,
-        help="Type of the jobs needed to be calculated choose from:\n relax, ebs, dos, elastic, phonon",
-        default='relax')
     parser.add_argument("--name",
                         dest="name",
                         type=str,
@@ -432,13 +300,12 @@ if __name__ == "__main__":
                        port=args.port,
                        user=args.name,
                        passwd=args.passwd)
-    db = CalcDatabase(
+    db = ICSDDatabase(
         args.name,
         args.host,
         args.port,
         args.user,
-        args.passwd,
-        calc_type=args.job_type)
+        args.passwd)
     db.symprec(args.symprec)
     db.verbose(args.verbose)
     for mode in args.mode:
@@ -448,3 +315,6 @@ if __name__ == "__main__":
         elif mode == 'export':
             db.to_json()
 
+
+
+        

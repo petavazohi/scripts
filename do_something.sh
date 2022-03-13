@@ -9,7 +9,8 @@
 
 for idir in mp-*
 do
-    cp ${idir}/LDA/*init.vasp ${idir}/MBJ/
+    mkdir mp_init/${idir}
+    mv ${idir}/ICSD mp_init/${idir}/ICSD
 done
 
 
