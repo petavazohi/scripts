@@ -46,6 +46,8 @@ class ICSDDatabase(pychemia.db.PyChemiaDB):
     def check_dirs(self, path='.'):
         dirs = os.listdir(path)
         for idir in dirs:
+            if "skip" in idir:
+                continue
             if os.path.isdir(path + os.sep + idir):
                 if contains_cif(path + os.sep + idir):
                     self.paths.append(path + os.sep + idir)
@@ -55,12 +57,25 @@ class ICSDDatabase(pychemia.db.PyChemiaDB):
         ndirs = len(self.paths)
         if self._verbose:
             print(f"Number of directories to be analyzed: {ndirs}. Number of processors: {nproc}")
-        with Pool(nproc) as p:
-            data = p.map(extract_data, self.paths)
-            for datum in data:
-                self.update_path(datum)
+        if nproc == 1:
+            data = []
+            for ip in self.paths:
+                data.append(extract_data(ip))
+        else:
+            with Pool(nproc) as p:
+                data = p.map(extract_data, self.paths)
+                for datum in data:
+                    self.update_path(datum)
         return
 
+
+    def check_errors(self):
+        with open('icsd_cif_errors.txt', 'w') as wf:
+            for ip in self.paths:
+                try:
+                    extract_data(ip)
+                except:
+                    wf.write(ip+';')        
 
     def update_path(self, data):
         entry = self.entries.find_one({'$and': [{"properties.code_ICSD":data['properties']['code_ICSD']},
@@ -111,10 +126,12 @@ def extract_data(path, symprec=1e-5):
     for ifile in dirs:
         if ".cif" in ifile:
             break
-    print(path+os.sep+ifile)
     cif_item = cif.CifParser(path+os.sep+ifile)
     structure = cif_item.get_structures()[0]
-    symbols = [site.element.value for site in structure.species]
+    symbols = [site.symbol for site in structure.species]
+    for i, sym in enumerate(symbols):
+        if sym == "D":
+            symbols[i] = 'H'
     cell = structure.lattice.matrix
     reduced = structure.frac_coords
     structure = pychemia.core.Structure(cell=cell, symbols=symbols, reduced=reduced)
@@ -137,7 +154,7 @@ def extract_data(path, symprec=1e-5):
         symprec=symprec)
     properties['lattice_degrees_of_freedom'] = get_lattice_degrees_of_freedom(
         crystal_family.lower(), structure.lattice)
-    # print(f"mp_id : {mp_id:<30}| icsd code  : {icsd:>30}")
+    print(f"mp_id : {mp_id:<30}| icsd code  : {icsd:>30}")
     return {'structure': structure,
         'properties': properties,
         }
@@ -314,6 +331,9 @@ if __name__ == "__main__":
             db.run(args.nproc)
         elif mode == 'export':
             db.to_json()
+        elif mode == 'check':
+            db.check_dirs(args.path)
+            db.check_errors()
 
 
 
