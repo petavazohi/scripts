@@ -29,9 +29,11 @@ def to_excel(db_calc,
               'Bandgap', 'Direct gap',
               'nspecies', 'natoms',
               'a DOF', "b DOF", "c DOF",
-              'a', 'b', 'c',
+              'a', 'a ICSD', 'a error',
+              'b', 'b ICSD', 'b error',
+              'c', 'c ICSD',  'c error',
+               '(RSME abc).(DOF)', '(MAE abc).(DOF)','(ME abc).(DOF)',
               'alpha', 'beta', 'gamma',
-              'a ICSD', 'b ICSD', 'c ICSD',
               'alpha ICSD', 'beta ICSD', 'gamma ICSD',
               'Same SPG',
               'MP ID',"ICSD code"]
@@ -52,12 +54,14 @@ def to_excel(db_calc,
                'Element electronegativity',
                'nspecies', 'natoms',
                'a DOF', "b DOF", "c DOF",
-               'a', 'b', 'c',
+               'a', 'a ICSD', 'a error',
+               'b', 'b ICSD', 'b error',
+               'c', 'c ICSD',  'c error',
+               '(RSME abc).(DOF)', '(MAE abc).(DOF)','(ME abc).(DOF)',
                'alpha', 'beta', 'gamma',
-               'a ICSD', 'b ICSD', 'c ICSD',
                'alpha ICSD', 'beta ICSD', 'gamma ICSD',
                'Same SPG',
-               'MP ID',"ICSD code"]
+               'MP ID',"ICSD code",]
     
     # only Wyckoff
     head_w = ['XC',
@@ -76,11 +80,14 @@ def to_excel(db_calc,
               'x DOF', "y DOF", "z DOF",
               'Multiplicity',
               'Wyckoff letter',
-              'x', 'y', 'z',
-              'x ICSD', 'y ICSD', 'z ICSD',
+              'x', 'x ICSD', 'x error',
+              'y', 'y ICSD', 'y error',
+              'z', 'z ICSD', 'z error',
+              '(RSME xyz).(DOF)', '(MAE xyz).(DOF)',               
               'Same SPG',
               "Chemical formula",
-              'MP ID',"ICSD code"]
+              'MP ID',"ICSD code", 
+              ]
     # references
     head_r = ['MP ID',"ICSD code", "Chemical formula", "Chemical name"]
 
@@ -182,9 +189,8 @@ def to_excel(db_calc,
         mp_id = entry_calc['properties']['mp_id']
         xc = entry_calc['properties']['xc']
 
-        if mp_id != 'mp-27507' or xc != 'PBE':
-            continue
-        print(entry_calc['properties']['path'])
+        # if mp_id != 'mp-27507' or xc != 'PBE':
+        #     continue
         spg_no = entry_calc['properties']['final']['crystal_symmetry']['number']
         spg_symbol = entry_calc['properties']['final']['crystal_symmetry']['international_short']
         family = entry_calc['properties']['final']['crystal_family']
@@ -198,10 +204,10 @@ def to_excel(db_calc,
                                                         ]})
         if entry_icsd:
             code_icsd = entry_icsd['properties']['code_ICSD']
-            print(entry_icsd['properties']['path'])
             formula = entry_icsd['properties']['cif'][f'{code_icsd}-ICSD']["_chemical_formula_structural"]
             name = entry_icsd['properties']['cif'][f'{code_icsd}-ICSD']["_chemical_name_common"]
             st_icsd = icsd_db.get_structure(entry_icsd['_id'])
+            st_icsd = sort_sites(get_primitive(get_conventional(st_icsd, symprec), symprec))
             # st_icsd.sort_axes()
             cs_icsd = pychemia.crystal.CrystalSymmetry(st_icsd)
             st_icsd = cs_icsd.refine_cell(symprec)
@@ -218,6 +224,7 @@ def to_excel(db_calc,
             spg_no_icsd = entry_icsd['properties']['crystal_symmetry']['number']
             
             st = db_calc.get_structure(entry_calc['_id'])
+            st = sort_sites(get_primitive(get_conventional(st, symprec), symprec))
             # st.sort_axes()
             cs = pychemia.crystal.CrystalSymmetry(st)
             st = cs.refine_cell(symprec)
@@ -256,6 +263,24 @@ def to_excel(db_calc,
             multiplicity = wyckoff_analysis['multiplicity']
             wyckoff_letter = wyckoff_analysis['wyckoff_letter']
             dof_format = [int_format_nf, float_format_red]
+
+            da = (a-a_icsd)/a
+            db = (b-b_icsd)/b
+            dc = (c-c_icsd)/c
+            if sum(outer) != 0:
+                rmse_abc = ((da*outer[0])**2+
+                            (db*outer[1])**2+
+                            (dc*outer[2])**2/sum(outer))**1/2
+                mae_abc = (abs(da*outer[0])+
+                           abs(db*outer[1])+
+                           abs(dc*outer[2]))/sum(outer)
+                me_abc = (da*outer[0]+
+                          db*outer[1]+
+                          dc*outer[2])/sum(outer)
+            else :
+                rmse_abc = None
+                mae_abc = None
+                me_abc= None
             
             worksheet_l.write_number(row_l, col_number_l['Lattice DOF'], sum(outer), int_format_nf)
             worksheet_l.write_number(row_l, col_number_l['a DOF'], outer[0], dof_format[int(outer[0])])
@@ -285,6 +310,12 @@ def to_excel(db_calc,
             worksheet_l.write_number(row_l, col_number_l['nspecies'], nspecies, int_format_nf)
             worksheet_l.write_number(row_l, col_number_l['natoms'], natom, int_format_nf)
             worksheet_l.write_boolean(row_l, col_number_l['Same SPG'], spg_no == spg_no_icsd, center_format_nf)
+            worksheet_l.write_number(row_l, col_number_l['a error'], da, float_format_nf)
+            worksheet_l.write_number(row_l, col_number_l['b error'], db, float_format_nf)
+            worksheet_l.write_number(row_l, col_number_l['c error'], dc, float_format_nf)
+            worksheet_l.write(row_l, col_number_l['(RSME abc).(DOF)'], rmse_abc, float_format_nf)
+            worksheet_l.write(row_l, col_number_l['(MAE abc).(DOF)'], mae_abc, float_format_nf)
+            worksheet_l.write(row_l, col_number_l['(ME abc).(DOF)'], me_abc, float_format_nf)
             row_l += 1
 
             for ispc in range(nspecies):
@@ -333,6 +364,13 @@ def to_excel(db_calc,
                 worksheet_ls.write_number(row_ls, col_number_ls['nspecies'], nspecies, int_format)
                 worksheet_ls.write_number(row_ls, col_number_ls['natoms'], natom, int_format)
                 worksheet_ls.write_boolean(row_ls, col_number_ls['Same SPG'], spg_no == spg_no_icsd, center_format)
+                worksheet_ls.write_number(row_ls, col_number_ls['a error'], da, float_format_nf)
+                worksheet_ls.write_number(row_ls, col_number_ls['b error'], db, float_format_nf)
+                worksheet_ls.write_number(row_ls, col_number_ls['c error'], dc, float_format_nf)
+                worksheet_ls.write(row_ls, col_number_ls['(RSME abc).(DOF)'], rmse_abc, float_format_nf)
+                worksheet_ls.write(row_ls, col_number_ls['(MAE abc).(DOF)'], mae_abc, float_format_nf)
+                worksheet_ls.write(row_ls, col_number_ls['(ME abc).(DOF)'], me_abc, float_format_nf)
+
                 row_ls += 1
                 
             
@@ -348,6 +386,20 @@ def to_excel(db_calc,
                     float_format = float_format_nf
                     center_format = center_format_nf
                 sym = symbols[iatom]
+                dx = diff_reduced_coordinate(reduced[iatom][0], reduced_icsd[iatom][0])
+                dy = diff_reduced_coordinate(reduced[iatom][1], reduced_icsd[iatom][1])
+                dz = diff_reduced_coordinate(reduced[iatom][2], reduced_icsd[iatom][2])
+                if sum(inner[iatom]) != 0:
+                    rmse_xyz = ((dx*inner[iatom][0])**2+
+                                (dy*inner[iatom][1])**2+
+                                (dz*inner[iatom][2])**2/sum(inner[iatom]))**1/2
+                    mae_xyz = (abs(dx*inner[iatom][0])+
+                               abs(dy*inner[iatom][1])+
+                               abs(dz*inner[iatom][2]))/sum(inner[iatom])
+                else:
+                    rmse_xyz = None
+                    mae_xyz = None
+                
                 worksheet_w.write_string(row_w, col_number_w['Element class'], get_element_class(sym), center_format)
                 worksheet_w.write_string(row_w, col_number_w["Element block"], periodic.block(sym), center_format)
                 worksheet_w.write_number(row_w, col_number_w['Element group'], periodic.group(sym), int_format)
@@ -381,8 +433,13 @@ def to_excel(db_calc,
                 worksheet_w.write_number(row_w, col_number_w['x ICSD'], reduced_icsd[iatom][0], float_format)
                 worksheet_w.write_number(row_w, col_number_w['y ICSD'], reduced_icsd[iatom][1], float_format)
                 worksheet_w.write_number(row_w, col_number_w['z ICSD'], reduced_icsd[iatom][2], float_format)
-                print(f"{reduced[iatom][0]}, {reduced[iatom][1]}, {reduced[iatom][2]} | {reduced_icsd[iatom][0]}, {reduced_icsd[iatom][1]}, {reduced_icsd[iatom][2]}")
                 worksheet_w.write_boolean(row_w, col_number_w['Same SPG'], spg_no == spg_no_icsd, center_format)
+                worksheet_w.write_number(row_w, col_number_w['x error'], dx, float_format)
+                worksheet_w.write_number(row_w, col_number_w['y error'], dy, float_format)
+                worksheet_w.write_number(row_w, col_number_w['z error'], dz, float_format)
+                worksheet_w.write(row_w, col_number_w['(RSME xyz).(DOF)'], rmse_xyz, float_format)
+                worksheet_w.write(row_w, col_number_w['(MAE xyz).(DOF)'], mae_xyz, float_format)
+
                 row_w += 1
                 
             if mp_id not in added_materials:
@@ -431,9 +488,7 @@ def to_excel(db_calc,
         # df['x error'] = [diff_reduced_coordinate(x, x_prime) for x, x_prime in zip(df['x'], df['x ICSD'])]
         # df['y error'] = [diff_reduced_coordinate(x, x_prime) for x, x_prime in zip(df['y'], df['y ICSD'])]
         # df['z error'] = [diff_reduced_coordinate(x, x_prime) for x, x_prime in zip(df['z'], df['z ICSD'])]
-        # df['a error'] = (df['a'] - df['a ICSD'])/df['a']
-        # df['b error'] = (df['b'] - df['b ICSD'])/df['b']
-        # df['c error'] = (df['c'] - df['c ICSD'])/df['c']
+
         # df['(RSME xyz).(DOF)'] = (((df['x error']*df['x freedom'])**2+
         #                            (df['y error']*df['y freedom'])**2+
         #                            (df['z error']*df['z freedom'])**2)/(df['No. Wyckoff degrees of freedom']))**(1/2)
@@ -453,6 +508,9 @@ def to_excel(db_calc,
         # df['ME abc'] = (abs(df['a error'])+
         #                 abs(df['b error'])+
         #                 abs(df['c error']))/3*df['No. lattice degrees of freedom']/df['No. lattice degrees of freedom']
+        # df['a error'] = (df['a'] - df['a ICSD'])/df['a']
+        # df['b error'] = (df['b'] - df['b ICSD'])/df['b']
+        # df['c error'] = (df['c'] - df['c ICSD'])/df['c']
         # df.to_excel(f'{self.name}-db.xlsx')
     workbook.close()
     return
@@ -481,6 +539,7 @@ def to_excel(db_calc,
 
 
 def get_wyckoffs(structure, symprec=1e-5):
+
     crystal_symmetry = pychemia.crystal.CrystalSymmetry(structure)
     spg = crystal_symmetry.number(symprec=symprec)
     wyckoffs = np.array(
@@ -575,7 +634,7 @@ def sort_sites(st):
                               ('x', np.float64),
                               ('y', np.float64),
                               ('z', np.float64)])
-    print(to_sort)
+
     idx = np.argsort(to_sort, order=('symbols', 'norm', 'x', 'y', 'z'))
     # Second: Sort again using the atomic number
     st.sort_sites_using_list(idx)
