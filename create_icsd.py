@@ -13,6 +13,9 @@ from re import findall
 from collections import OrderedDict
 import pandas as pd
 import pymatgen.io.cif as cif
+from pymatgen.symmetry.analyzer import pmSpacegroupAnalyzer
+from pymatgen.core.structure import pmStructure
+
 
 class ICSDDatabase(pychemia.db.PyChemiaDB):
     def __init__(
@@ -158,6 +161,7 @@ def extract_data(path, symprec=1e-5):
     return {'structure': structure,
         'properties': properties,
         }
+
 
 
 def lattice_to_dict(lattice):

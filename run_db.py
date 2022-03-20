@@ -75,7 +75,7 @@ class CalcDatabase(pychemia.db.PyChemiaDB):
         if entry is None:
             self.insert(**data)
         else:
-            self.update(entry,
+            self.update(entry['_id'],
                         structure=data['structure'],
                         properties=data['properties'],
                         status=data['status'])
@@ -150,6 +150,7 @@ def extract_data(path, symprec=1e-5):
             "CONTCAR") and status['status']['relaxed']:
         final_structure = pychemia.code.vasp.read_poscar(
             path + os.sep + "CONTCAR")
+        structure = final_structure
         final_structure.reduced[final_structure.reduced.round(3) >= 1] -= 1
         final_structure.reduced[final_structure.reduced.round(3) < 0] += 1
         final_crystal = pychemia.crystal.CrystalSymmetry(final_structure)
