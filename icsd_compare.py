@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-import pychemia
-from collections import OrderedDict
+
 import numpy as np
 import xlsxwriter
+
 import bibtexparser
 import argparse
 # from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 # from pymatgen.core.structure import Structure
+import pychemia
+import spglib
 from pymatgen.core import Element
 import wyckoff_list
 import string
@@ -208,10 +210,19 @@ def to_excel(db_calc,
             formula = entry_icsd['properties']['cif'][f'{code_icsd}-ICSD']["_chemical_formula_structural"]
             name = entry_icsd['properties']['cif'][f'{code_icsd}-ICSD']["_chemical_name_common"]
             st_icsd = icsd_db.get_structure(entry_icsd['_id'])
+            st_icsd = shift(st_icsd, symprec)
             st_icsd = get_conventional(st_icsd, symprec)
+            st_icsd = shift(st_icsd, symprec)
+            st_icsd = sort_sites(st_icsd, symprec)
+            st_icsd = shift(st_icsd, symprec)
             st_icsd = get_primitive(st_icsd, symprec)
             st_icsd = shift(st_icsd, symprec)
             st_icsd = get_conventional(st_icsd, symprec)
+            st_icsd = shift(st_icsd, symprec)
+            st_icsd = get_primitive(st_icsd, symprec)
+            # st_icsd = get_conventional(st_icsd, symprec)
+            st_icsd = shift(st_icsd, symprec)
+            st_icsd = get_standardized(st_icsd, symprec)
             st_icsd = sort_sites(st_icsd, symprec)
             # st_icsd.sort_axes()
             reduced_icsd = st_icsd.reduced
@@ -228,11 +239,21 @@ def to_excel(db_calc,
             spg_no_icsd = entry_icsd['properties']['crystal_symmetry']['number']
             
             st = db_calc.get_structure(entry_calc['_id'])
-            st = get_conventional(st, symprec)
-            st = get_primitive(st, symprec)
-            st = shift(st, symprec)
-            st = get_conventional(st, symprec)
-            st = sort_sites(st, symprec)
+            st_calc = shift(st, symprec)
+            st_calc = get_conventional(st_calc, symprec)
+            st_calc = shift(st_calc, symprec)
+            st_calc = sort_sites(st_calc, symprec)
+            st_calc = shift(st_calc, symprec)
+            st_calc = get_primitive(st_calc, symprec)
+            st_calc = shift(st_calc, symprec)
+            st_calc = get_conventional(st_calc, symprec)
+            st_calc = shift(st_calc, symprec)
+            st_calc = get_primitive(st_calc, symprec)
+            # st_calc = get_conventional(st_calc, symprec)  
+            st_calc = shift(st_calc, symprec)
+            st_calc = get_standardized(st_calc, symprec)
+            st_calc = sort_sites(st_calc, symprec)
+            st = st_calc
             # st.sort_axes()
             cs = pychemia.crystal.CrystalSymmetry(st)
             print(st)
@@ -497,7 +518,7 @@ def to_excel(db_calc,
     workbook.close()
     return
 
-def get_wyckoffs(structure, symprec=1e-5, order=False):
+def get_wyckoffs(structure, symprec=1e-2, order=False):
     crystal_symmetry = pychemia.crystal.CrystalSymmetry(structure)
     spg = crystal_symmetry.number(symprec=symprec)
     wyckoffs = np.array(
@@ -505,7 +526,7 @@ def get_wyckoffs(structure, symprec=1e-5, order=False):
             symprec=symprec)['wyckoffs'],
         dtype='<U3')
     equi_atoms= crystal_symmetry.get_symmetry_dataset(
-        symprec=symprec)['equivalent_atoms']
+            symprec=symprec)['equivalent_atoms']
     representation = wyckoff_list.get_wyckoff(spg)
     dof = np.zeros((structure.natom, 3), dtype=int)
     take_wyckoff = np.zeros((structure.natom))
@@ -516,8 +537,8 @@ def get_wyckoffs(structure, symprec=1e-5, order=False):
     for letter in string.ascii_lowercase:
         wyck_idx[letter] = -1 * i
         i += 1
-        
-        
+    
+
     for ieq in set(equi_atoms):
         idx = equi_atoms == ieq
         take_wyckoff[np.where(idx)[0][0]] = 1
@@ -536,16 +557,17 @@ def get_wyckoffs(structure, symprec=1e-5, order=False):
             e = equi_atoms[iatom]
             identifiers.append(f"{m}{l}-{sym}-{e}")
         identifiers = np.array(identifiers)
-        current_representation = np.empty_like(structure.reduced,
+        current_representation = np.empty_like(structure.reduced, 
                                                dtype=(np.str_,10))
         for _id in np.unique(identifiers):
             idx = identifiers == _id
             frac_coords = structure.reduced[idx]
             
             ml = _id.split('-')[0]
+
             # maps coordinates to the wyckoff_list
             mapper = match(frac_coords, wyckoff_lookup[ml])
-            print(mapper)
+            # print(mapper)
             for ix, iy in enumerate(np.where(idx)[0]):
                 current_representation[iy] = [x.strip() for x in wyckoff_lookup[ml][mapper[ix]]]
     mmm = []
@@ -563,12 +585,14 @@ def get_wyckoffs(structure, symprec=1e-5, order=False):
                     rep = current_representation[iatom][ix]
                     if 'x' in rep or 'y' in rep or 'z' in rep:
                         dof[iatom, ix] = 1
+
     return {'wyckoffs': wyckoffs[take_wyckoff.astype(np.bool_)].tolist(),
             'symmetry_species': np.array(structure.symbols)[take_wyckoff.astype(np.bool_)].tolist(),
             'inner_degrees_of_freedom': dof.tolist(),
             'representation': current_representation,
             'multiplicity': mmm,
-            'wyckoff_letter': www}
+            'wyckoff_letter': www,
+            "equivalent_atoms": equi_atoms}
 
 def get_primitive(st, symprec=1e-2):
     cs = pychemia.crystal.CrystalSymmetry(st)
@@ -577,6 +601,10 @@ def get_primitive(st, symprec=1e-2):
 def get_conventional(st, symprec=1e-2):
     cs = pychemia.crystal.CrystalSymmetry(st)
     return cs.refine_cell(symprec)
+
+def get_standardized(st, symprec=1e-2, primitive=False):
+    cs = pychemia.crystal.CrystalSymmetry(st)
+    return cs.get_new_structure(spglib.standardize_cell(cs.spglib_cell,symprec=symprec))
 
 
 def get_lattice_degrees_of_freedom(family, lattice, sigfigs):
@@ -599,20 +627,23 @@ def get_lattice_degrees_of_freedom(family, lattice, sigfigs):
 def sort_sites(st, symprec=1e-2, ascending=True):
     # First: Sort sites using the distance to the origin
     sigfigs = int(-np.log10(symprec))
-    st.reduced = st.reduced.round(sigfigs)
-    reduced = st.reduced.copy().round(1)
-    reduced[reduced >= 1] -= 1
-    reduced[reduced < 0] += 1
+    # st.reduced = st.reduced.round(sigfigs)
+    st.reduced[st.reduced >= 1] -= 1
+    st.reduced[st.reduced < 0] += 1
+    reduced = st.reduced.copy()
+    reduced = reduced.round(1)
     norms = [np.linalg.norm(x).round(sigfigs) for x in st.reduced]
-    x = st.reduced[:, 0]
-    y = st.reduced[:, 1]
-    z = st.reduced[:, 2]
-    wyckoff_analysis = get_wyckoffs(st, symprec)
+    x = reduced[:, 0]
+    y = reduced[:, 1]
+    z = reduced[:, 2]
+    wyckoff_analysis = get_wyckoffs(st, symprec, False)
+    equi_atoms= wyckoff_analysis['equivalent_atoms']
     symbols = []
     multiplicity = wyckoff_analysis['multiplicity']
     wyckoff_letter = wyckoff_analysis['wyckoff_letter']
     for iatom in range(st.natom):
-        symbols.append(f"{multiplicity[iatom]}{wyckoff_letter[iatom]}{st.symbols[iatom]}")
+        symbols.append(f"{multiplicity[iatom]}{wyckoff_letter[iatom]}{st.symbols[iatom]}{equi_atoms[iatom]}")
+    
     # print sorted_indices
     to_sort = np.array(list(zip(symbols, x, y, z, norms)),
                        dtype=[('symbols', np.unicode_, 16),
@@ -629,21 +660,20 @@ def sort_sites(st, symprec=1e-2, ascending=True):
 
 def shift(st, symprec=1e-2):
     st = sort_sites(st, symprec, False)
-    
+
     reduced = np.zeros_like(st.reduced)
-    reduced[:, 0] = st.reduced[:, 0] - st.reduced[0, 0]
-    reduced[:, 1] = st.reduced[:, 1] - st.reduced[0, 1]
-    reduced[:, 2] = st.reduced[:, 2] - st.reduced[0, 2]
+    reduced[:, 0] = st.reduced[:, 0] - st.reduced[0,0]
+    reduced[:, 1] = st.reduced[:, 1] - st.reduced[0,1]
+    reduced[:, 2] = st.reduced[:, 2] - st.reduced[0,2]
     st = pychemia.core.Structure(symbols=st.symbols, cell=st.cell, reduced=reduced)
-    st = get_primitive(get_conventional(st, symprec), symprec)
+    # st = get_primitive(get_conventional(st, symprec), symprec)
     return st
 
 def match(frac_coords, wyckoffs):
     G = nx.Graph()
-    G = nx.Graph()
     def conv(xyz):
         if ('x' not in xyz) and ('y' not in xyz) and ('z' not in xyz):
-        
+            
             fraction = xyz.strip().split('/')
             
             if len(fraction) ==2:
@@ -654,7 +684,7 @@ def match(frac_coords, wyckoffs):
                 ret-=1
             elif ret<0:
                 ret+=1
-            return ret
+            return ret                
         else:
             return xyz
     def is_number(x):
@@ -667,6 +697,7 @@ def match(frac_coords, wyckoffs):
         G.add_node(f"{ipos}-w", coords=[x,y,z])
     for jpos, fc in enumerate(frac_coords):
         G.add_node(f"{jpos}-c", coords=fc)
+    
 
     for ipos, rep in enumerate(wyckoffs):
         x = conv(rep[0])
@@ -679,16 +710,16 @@ def match(frac_coords, wyckoffs):
             
             if not is_number(x):
                 if not is_number(y):
-                    if not is_number(z):
+                    if not is_number(z): 
                         continue
-                    else :
+                    else : 
                         if z==zp:
                             G.add_edge(f"{ipos}-w", f"{jpos}-c", weight=1)
                 else:
                     if not is_number(z):
                         if y==yp:
                             G.add_edge(f"{ipos}-w", f"{jpos}-c", weight=1)
-                    else:
+                    else :
                         if y==yp and z==zp:
                             G.add_edge(f"{ipos}-w", f"{jpos}-c", weight=2)
             else:
@@ -696,9 +727,9 @@ def match(frac_coords, wyckoffs):
                     if not is_number(z):
                         if x==xp:
                             G.add_edge(f"{ipos}-w", f"{jpos}-c", weight=1)
-                        else :
-                            if x==xp and z==zp:
-                                G.add_edge(f"{ipos}-w", f"{jpos}-c", weight=2)
+                    else :
+                        if x==xp and z==zp:
+                            G.add_edge(f"{ipos}-w", f"{jpos}-c", weight=2)
                 else:
                     if not is_number(z):
                         if x==xp and y==yp:
@@ -712,14 +743,15 @@ def match(frac_coords, wyckoffs):
         z = conv(rep[2])
         if not is_number(x):
             if not is_number(y):
-                if not is_number(z):
+                if not is_number(z): 
                     for jpos, fc in enumerate(frac_coords):
                         xp = fc[0]
                         yp = fc[1]
                         zp = fc[2]
                         if len(G.edges(f"{jpos}-c")) == 0:
                             G.add_edge(f"{ipos}-w", f"{jpos}-c", weight=1)
-                            break
+                            break            
+
     for inode in G.nodes():
         edges = np.array([e for e in G.edges(inode, data='weight')])
         if len(edges) in [0,1]:
