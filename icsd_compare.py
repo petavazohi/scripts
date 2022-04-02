@@ -192,8 +192,8 @@ def to_excel(db_calc,
         _id = str(entry_calc['_id'])
         mp_id = entry_calc['properties']['mp_id']
         xc = entry_calc['properties']['xc']
-        if mp_id != 'mp-23018' or xc != 'PBE':
-            continue
+        # if mp_id != 'mp-23018' or xc != 'PBE':
+        #     continue
         # spg_no = entry_calc['properties']['final']['crystal_symmetry']['number']
         # spg_symbol = entry_calc['properties']['final']['crystal_symmetry']['international_short']
         # family = entry_calc['properties']['final']['crystal_family']
@@ -212,15 +212,13 @@ def to_excel(db_calc,
             st_icsd = icsd_db.get_structure(entry_icsd['_id'])
             st_icsd = shift(st_icsd, symprec)
             st_icsd = get_conventional(st_icsd, symprec)
-            st_icsd = shift(st_icsd, symprec)
-            st_icsd = sort_sites(st_icsd, symprec)
-            st_icsd = shift(st_icsd, symprec)
-            st_icsd = get_primitive(st_icsd, symprec)
-            st_icsd = shift(st_icsd, symprec)
-            st_icsd = get_conventional(st_icsd, symprec)
-            st_icsd = shift(st_icsd, symprec)
-            st_icsd = get_primitive(st_icsd, symprec)
-            # st_icsd = get_conventional(st_icsd, symprec)
+            for i in range(st_icsd.natom):
+                st_icsd = shift(st_icsd, symprec, np.random.randint(st_icsd.natom), True)
+                st_icsd = sort_sites(st_icsd, symprec)
+                st_icsd = shift(st_icsd, symprec, np.random.randint(st_icsd.natom), True)
+                st_icsd = get_primitive(st_icsd, symprec)
+                st_icsd = shift(st_icsd, symprec, np.random.randint(st_icsd.natom), True)
+                st_icsd = get_conventional(st_icsd, symprec)
             st_icsd = shift(st_icsd, symprec)
             st_icsd = get_standardized(st_icsd, symprec)
             st_icsd = sort_sites(st_icsd, symprec)
@@ -236,28 +234,23 @@ def to_excel(db_calc,
             alpha_icsd = st_icsd.lattice.alpha
             beta_icsd = st_icsd.lattice.beta
             gamma_icsd = st_icsd.lattice.gamma
-            spg_no_icsd = entry_icsd['properties']['crystal_symmetry']['number']
+            spg_no_icsd = spg_no # entry_icsd['properties']['crystal_symmetry']['number']
             
             st = db_calc.get_structure(entry_calc['_id'])
-            st_calc = shift(st, symprec)
-            st_calc = get_conventional(st_calc, symprec)
-            st_calc = shift(st_calc, symprec)
-            st_calc = sort_sites(st_calc, symprec)
-            st_calc = shift(st_calc, symprec)
-            st_calc = get_primitive(st_calc, symprec)
-            st_calc = shift(st_calc, symprec)
-            st_calc = get_conventional(st_calc, symprec)
-            st_calc = shift(st_calc, symprec)
-            st_calc = get_primitive(st_calc, symprec)
-            # st_calc = get_conventional(st_calc, symprec)  
-            st_calc = shift(st_calc, symprec)
-            st_calc = get_standardized(st_calc, symprec)
-            st_calc = sort_sites(st_calc, symprec)
-            st = st_calc
+            st = shift(st, symprec)
+            st = get_conventional(st, symprec)
+            for i in range(st.natom):
+                st = shift(st, symprec, np.random.randint(st.natom), True)
+                st = sort_sites(st, symprec)
+                st = shift(st, symprec, np.random.randint(st.natom), True)
+                st = get_primitive(st, symprec)
+                st = shift(st, symprec, np.random.randint(st.natom), True)
+                st = get_conventional(st, symprec)
+            st = shift(st, symprec)
+            st = get_standardized(st, symprec)
+            st = sort_sites(st, symprec)
             # st.sort_axes()
             cs = pychemia.crystal.CrystalSymmetry(st)
-            print(st)
-            print(st_icsd)
             if st.natom != st_icsd.natom:
                 print("---------------------------------------------------------")
                 print(st.composition,"|", st_icsd.composition)
@@ -271,8 +264,8 @@ def to_excel(db_calc,
             alpha = st.lattice.alpha
             beta = st.lattice.beta
             gamma = st.lattice.gamma
-            # print(reduced)
-            # print(reduced_icsd)
+            # print(st_icsd)
+            # print(st)
             
 
             # print(st.composition,"|", st_icsd.composition)
@@ -288,6 +281,7 @@ def to_excel(db_calc,
             outer = lattice_degrees_of_freedom
             multiplicity = wyckoff_analysis['multiplicity']
             wyckoff_letter = wyckoff_analysis['wyckoff_letter']
+            wyckoff_rep = wyckoff_analysis['representation']
             dof_format = [int_format_nf, float_format_red]
 
             da = (a-a_icsd)/a
@@ -455,7 +449,8 @@ def to_excel(db_calc,
 
                 worksheet_w.write_number(row_w, col_number_w['Multiplicity'], multiplicity[iatom], int_format)
                 worksheet_w.write_string(row_w, col_number_w['Wyckoff letter'], wyckoff_letter[iatom], center_format)
-                                
+                worksheet_w.write_string(row_w, col_number_w['Representation'], str(wyckoff_rep[iatom]), center_format)
+                
                 worksheet_w.write_number(row_w, col_number_w['x'], reduced[iatom][0], float_format)
                 worksheet_w.write_number(row_w, col_number_w['y'], reduced[iatom][1], float_format)
                 worksheet_w.write_number(row_w, col_number_w['z'], reduced[iatom][2], float_format)                
@@ -519,6 +514,9 @@ def to_excel(db_calc,
     return
 
 def get_wyckoffs(structure, symprec=1e-2, order=False):
+    sigfigs = int(-np.log10(symprec))
+    structure.reduced[structure.reduced.round(sigfigs) >= 1] -= 1
+    structure.reduced[structure.reduced.round(sigfigs) < 0] += 1
     crystal_symmetry = pychemia.crystal.CrystalSymmetry(structure)
     spg = crystal_symmetry.number(symprec=symprec)
     wyckoffs = np.array(
@@ -561,12 +559,12 @@ def get_wyckoffs(structure, symprec=1e-2, order=False):
                                                dtype=(np.str_,10))
         for _id in np.unique(identifiers):
             idx = identifiers == _id
-            frac_coords = structure.reduced[idx]
+            frac_coords = structure.reduced[idx].round(sigfigs)
             
             ml = _id.split('-')[0]
 
             # maps coordinates to the wyckoff_list
-            mapper = match(frac_coords, wyckoff_lookup[ml])
+            mapper = match(frac_coords, wyckoff_lookup[ml], symprec)
             # print(mapper)
             for ix, iy in enumerate(np.where(idx)[0]):
                 current_representation[iy] = [x.strip() for x in wyckoff_lookup[ml][mapper[ix]]]
@@ -658,18 +656,28 @@ def sort_sites(st, symprec=1e-2, ascending=True):
     st.sort_sites_using_list(idx)
     return st.copy()
 
-def shift(st, symprec=1e-2):
-    st = sort_sites(st, symprec, False)
 
+def shift(st, symprec=1e-2, which=0, random=False):
+    st = sort_sites(st, symprec, False)
+    shift_selections = [-3/4, -2/3, -1/2, -1/3, -1/4, 1/4, 1/3, 1/2, 2/3, 3/4]
+    if random:
+        a1 = np.random.choice(shift_selections)
+        a2 = np.random.choice(shift_selections)
+        a3 = np.random.choice(shift_selections)
+    else:
+        a1 = 0.0
+        a2 = 0.0
+        a3 = 0.0
     reduced = np.zeros_like(st.reduced)
-    reduced[:, 0] = st.reduced[:, 0] - st.reduced[0,0]
-    reduced[:, 1] = st.reduced[:, 1] - st.reduced[0,1]
-    reduced[:, 2] = st.reduced[:, 2] - st.reduced[0,2]
+    reduced[:, 0] = st.reduced[:, 0] - st.reduced[which,0] + a1
+    reduced[:, 1] = st.reduced[:, 1] - st.reduced[which,1] + a2
+    reduced[:, 2] = st.reduced[:, 2] - st.reduced[which,2] + a3
     st = pychemia.core.Structure(symbols=st.symbols, cell=st.cell, reduced=reduced)
-    # st = get_primitive(get_conventional(st, symprec), symprec)
+    
     return st
 
-def match(frac_coords, wyckoffs):
+def match(frac_coords, wyckoffs, symprec=1e-2):
+    sigfigs = int(-np.log10(symprec))
     G = nx.Graph()
     def conv(xyz):
         if ('x' not in xyz) and ('y' not in xyz) and ('z' not in xyz):
@@ -684,7 +692,7 @@ def match(frac_coords, wyckoffs):
                 ret-=1
             elif ret<0:
                 ret+=1
-            return ret                
+            return round(ret , sigfigs)
         else:
             return xyz
     def is_number(x):
@@ -771,6 +779,12 @@ def match(frac_coords, wyckoffs):
                 continue
             else:
                 G.remove_edge(u, v)
+    for ipos, rep in enumerate(wyckoffs):
+        if len(G.edges(f"{ipos}-w")) == 0:
+            for jpos, fc in enumerate(frac_coords):
+                if len(G.edges(f"{jpos}-c")) == 0:
+                    G.add_edge(f"{ipos}-w", f"{jpos}-c", weight=1)
+                    break    
     mapper = {}
     for e in G.edges():
         u = int(e[0].split("-")[0])
@@ -871,5 +885,5 @@ if __name__ ==  "__main__":
                                             port=args.port,
                                             user=args.user,
                                             passwd=args.passwd))
-    to_excel(com_db, icsd_db, args.output, symprec=1e-2)
+    to_excel(com_db, icsd_db, args.output, symprec=1e-3)
     
