@@ -25,6 +25,47 @@ for x in string.ascii_uppercase:
         x_list.append(x+y)
 
 
+# def get_structure(args):
+#     st_calc = args[0]['structure']
+#     st_icsd = args[1]['structure']
+#     symprec = args[2]
+#     icsd_id =  str(args[0]['_id'])
+#     print(f'{st_calc.formula:10}  |  {icsd_id:30}')
+#     # print(st, st_icsd, symprec)
+#     sigfigs = int(-np.log10(symprec))
+#     try:
+#         for i in range(st_icsd.natom):
+#             st_icsd = shift(st_icsd, symprec, np.random.randint(st_icsd.natom), True)
+#             st_icsd = sort_sites(st_icsd, symprec)
+#             st_icsd = shift(st_icsd, symprec, np.random.randint(st_icsd.natom), True)
+#             st_icsd = get_primitive(st_icsd, symprec)
+#             st_icsd = shift(st_icsd, symprec, np.random.randint(st_icsd.natom), True)
+#             st_icsd = get_conventional(st_icsd, symprec)
+#             # time.sleep(0.2 + 1 * np.random.random())
+#         st_icsd = shift(st_icsd, symprec)
+#         st_icsd = get_standardized(st_icsd, symprec)
+#         st_icsd = sort_sites(st_icsd, symprec)
+
+#         st_calc = shift(st_calc, symprec)
+#         st_calc = get_conventional(st_calc, symprec)
+#         for i in range(st_calc.natom):
+#             st_calc = shift(st_calc, symprec, np.random.randint(st_calc.natom), True)
+#             st_calc = sort_sites(st_calc, symprec)
+#             st_calc = shift(st_calc, symprec, np.random.randint(st_calc.natom), True)
+#             st_calc = get_primitive(st_calc, symprec)
+#             st_calc = shift(st_calc, symprec, np.random.randint(st_calc.natom), True)
+#             st_calc = get_conventional(st_calc, symprec)
+#         st_calc = shift(st_calc, symprec)
+#         st_calc = get_standardized(st_calc, symprec)
+#         st_calc = sort_sites(st_calc, symprec)
+#     except:
+#         st_calc = args[0]['structure']
+#         st_icsd = args[1]['structure']
+#         st_calc.symbols = ["Error" for x in st_calc.symbols]
+
+#     return [{'structure':st_calc, '_id':args[0]['_id']}, {'structure':st_icsd, '_id':args[1]['_id']}]
+
+
 def get_structure(args):
     st_calc = args[0]['structure']
     st_icsd = args[1]['structure']
@@ -33,38 +74,19 @@ def get_structure(args):
     print(f'{st_calc.formula:10}  |  {icsd_id:30}')
     # print(st, st_icsd, symprec)
     sigfigs = int(-np.log10(symprec))
+    
     try:
-        for i in range(st_icsd.natom):
-            st_icsd = shift(st_icsd, symprec, np.random.randint(st_icsd.natom), True)
-            st_icsd = sort_sites(st_icsd, symprec)
-            st_icsd = shift(st_icsd, symprec, np.random.randint(st_icsd.natom), True)
-            st_icsd = get_primitive(st_icsd, symprec)
-            st_icsd = shift(st_icsd, symprec, np.random.randint(st_icsd.natom), True)
-            st_icsd = get_conventional(st_icsd, symprec)
-            # time.sleep(0.2 + 1 * np.random.random())
-        st_icsd = shift(st_icsd, symprec)
-        st_icsd = get_standardized(st_icsd, symprec)
-        st_icsd = sort_sites(st_icsd, symprec)
-
-        st_calc = shift(st_calc, symprec)
-        st_calc = get_conventional(st_calc, symprec)
-        for i in range(st_calc.natom):
-            st_calc = shift(st_calc, symprec, np.random.randint(st_calc.natom), True)
-            st_calc = sort_sites(st_calc, symprec)
-            st_calc = shift(st_calc, symprec, np.random.randint(st_calc.natom), True)
-            st_calc = get_primitive(st_calc, symprec)
-            st_calc = shift(st_calc, symprec, np.random.randint(st_calc.natom), True)
-            st_calc = get_conventional(st_calc, symprec)
-        st_calc = shift(st_calc, symprec)
-        st_calc = get_standardized(st_calc, symprec)
-        st_calc = sort_sites(st_calc, symprec)
+        if (st_calc.natom != st_icsd.natom):
+            st_calc = rattle(st_calc)
+            st_icsd = rattle(st_icsd)
+        st_calc, st_icsd = match_structures(st_calc, st_icsd, count=0)
+    
     except:
         st_calc = args[0]['structure']
         st_icsd = args[1]['structure']
         st_calc.symbols = ["Error" for x in st_calc.symbols]
 
     return [{'structure':st_calc, '_id':args[0]['_id']}, {'structure':st_icsd, '_id':args[1]['_id']}]
-
 
 def parallel_query(db_calc, db_icsd,
                    symprec=1e-5, nproc=2,
@@ -966,6 +988,104 @@ def match(frac_coords, wyckoffs, symprec=1e-2):
         v = int(e[1].split("-")[0])
         mapper[v]=u
     return mapper
+
+
+
+def match_structures(st1, st2, symprec=1e-2, count=0):
+    sigfigs = int(-np.log10(symprec))
+    st1.reduced[st1.reduced.round(sigfigs) >= 1] -= 1
+    st2.reduced[st2.reduced.round(sigfigs) < 0] += 1
+    if count>100:
+        print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+        print(f"reached max recurssion {count}")
+        print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+        
+        return st1, st2
+    
+    G = nx.Graph()
+    mapper = {x:[] for x,_ in enumerate(st1.reduced)}
+    for ipos, fc1 in enumerate(st1.reduced):
+        G.add_node(f"{ipos}-s1", coords=fc1)
+    for jpos, fc2 in enumerate(st2.reduced):
+        G.add_node(f"{jpos}-s2", coords=fc2)
+    
+
+    for ipos, fc1 in enumerate(st1.reduced):
+        for jpos, fc2 in enumerate(st2.reduced):
+            diff = np.array([min(abs(x1-x2), abs(x1-1-x2), abs(x1+1-x2)) for x1, x2 in zip(fc1, fc2)])
+            weight = (diff.round() <= [0.1, 0.1, 0.1]).sum()
+            if weight==3 :
+                G.add_edge(f"{ipos}-s1", f"{jpos}-s2", weight=1/max(1e-5,np.linalg.norm(diff)))
+    for inode in G.nodes():
+        edges = np.array([e for e in G.edges(inode, data='weight')])
+        if len(edges) in [0,1]:
+            continue
+        
+        weights = edges[:, 2].astype(float)
+        idx = np.flip(np.argsort(weights))
+        for i in range(1, len(idx)):
+            u = edges[idx][i][0]
+            v = edges[idx][i][1]
+            G.remove_edge(u, v)
+        jnode = edges[idx][0][1]
+        edges = np.array([e for e in G.edges(jnode, data='weight')])
+        for e in edges:
+            u = e[0]
+            v = e[1]
+            if u==jnode and v==inode:
+                continue
+            else:
+                G.remove_edge(u, v)
+    mapper = {}
+    perfect_match = True
+    
+    for inode in G.nodes():
+        edges = np.array([e for e in G.edges(inode)])
+        if len(edges) != 1:
+            perfect_match = False
+        
+    if perfect_match:
+        for e in G.edges():
+            u = int(e[0].split("-")[0])
+            v = int(e[1].split("-")[0])
+            mapper[v]=u
+        idx = np.zeros(st1.natom).astype(int)
+        for iatom in range(st1.natom):
+            idx[iatom] = mapper[iatom]
+        st1.sort_sites_using_list(idx)
+
+    else:
+        st1 = rattle(st1, symprec)
+        st2 = rattle(st2, symprec)
+        
+        st1, st2 = match_structures(st1, st2, symprec, count+1)
+        
+    return st1, st2
+
+
+def rattle(st, symprec=1e-2):
+    st = get_primitive(st, symprec)
+    st = shift(st, symprec, -1, True)
+    st = get_conventional(st, symprec)
+    st = get_standardized(st, symprec)
+    st = shift(st, symprec, -1, True)
+    st = sort_sites(st, symprec)
+    st = shift(st, symprec, -1, True)
+    st = get_primitive(st, symprec)
+    st = shift(st, symprec, -1, True)
+    st = get_conventional(st, symprec)
+    st = shift(st, symprec, -1, True)
+    st = sort_sites(st, symprec)
+    st = shift(st, symprec, -1, True)
+    st = get_primitive(st, symprec)
+    st = sort_sites(st, symprec)
+    st = shift(st, symprec, -1, True)
+    st = get_conventional(st, symprec)
+    # st = get_primitive(st, symprec)
+    # st = get_standardized(st, symprec)
+    st = sort_sites(st, symprec, False)
+    # st = st_sort_axes(st)
+    return st
 
                     
 def get_element_class(sym):
