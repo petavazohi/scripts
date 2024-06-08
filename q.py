@@ -17,7 +17,7 @@ for ijob in jobs:
                     job_queues[iqueue][status] += 1
 for iqueue in job_queues:
     print(
-        "Total jobs in {: >10} : {: >5}| Running {: >5}, Queued {: >5}, Canceled {: >5}".format(iqueue,
+        "Total jobs in {: >20} : {: >5}| Running {: >5}, Queued {: >5}, Canceled {: >5}".format(iqueue,
                                                                                                 job_queues[iqueue]['count'],
                                                                                                 job_queues[iqueue]['R'],
                                                                                                 job_queues[iqueue]['Q'],

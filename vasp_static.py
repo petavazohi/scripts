@@ -4,6 +4,7 @@ import pychemia
 import argparse
 import json
 import os
+KPoints = pychemia.crystal.KPoints
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--structure",dest="structure",type=str,help='poscar structure that you want to run',default = 'POSCAR')
@@ -12,11 +13,17 @@ parser.add_argument("-xc",dest="xc",type=str,help='exchange correlation function
 parser.add_argument('--incar_encut',dest='incar_encut',help="path to the extra variable you want to include in encut convergence",default ='none')
 parser.add_argument('--incar_kpoint',dest='incar_kpoint',help="path to the extra variable you want to include in kpoint convergence",default='none')
 parser.add_argument('--incar_static',dest='incar_static',help="path to the extra variable you want to include in statication",default='none')
+parser.add_argument('--kgrid', dest='kgrid', nargs=3, help="k space grid for sampling", default=None)
 parser.add_argument('--potcar_options',dest='psp_options',nargs='+',help="The options want to be used for pseudo potentials, eg: --potcar_options O_h Cu_pv")
 parser.add_argument('--tags',dest='tags',nargs='+',help='If you want to have a tag for all calculations for example ENCUT 250', default=None)
 
 args = parser.parse_args()
+
 extra_vars = {}
+extra_vars_encut = {}
+extra_vars_kpoint = {}
+extra_vars_static = {"EDIFF":1e-8}
+
 if args.tags is not None:
     for itag in range(0,len(args.tags),2):
         key = args.tags[itag]
@@ -38,18 +45,25 @@ elif args.xc == 'SCAN':
     extra_vars['METAGGA']="SCAN"
     extra_vars['ALGO']='A'
     extra_vars['ISMEAR']=0
+    extra_vars['LASPH'] =True
 elif args.xc == 'MBJ':
     pspdir = 'potpaw_PBE'
     extra_vars['METAGGA']='MBJ'
     extra_vars['ALGO']='A'
+    extra_vars['ISMEAR']=0
+    extra_vars['LASPH'] =True
 elif args.xc == "R2SCAN":
     pspdir = 'potpaw_PBE'
     extra_vars['METAGGA']='R2SCAN'
     extra_vars['ALGO']='A'
+    extra_vars['ISMEAR']=0
+    extra_vars['LASPH'] =True
 elif args.xc == "RSCAN":
     pspdir = 'potpaw_PBE'
     extra_vars['METAGGA']='RSCAN'
     extra_vars['ALGO']='A'
+    extra_vars['ISMEAR']=0
+    extra_vars['LASPH'] =True
 
 extra_vars['NBANDS'] = ' '
 
@@ -58,9 +72,6 @@ if args.psp_options:
     for option in args.psp_options:
         psp_options[option.split('_')[0]] = option.split('_')[1]
 
-extra_vars_encut = {}
-extra_vars_kpoint = {}
-extra_vars_static = {}
 
 for ikey in extra_vars:
     extra_vars_encut[ikey] = extra_vars[ikey]
@@ -120,8 +131,9 @@ else :
     rf.close()
     encut = encut_data['output']['best_encut']
 
-    
-if not os.path.exists('kpoint_report.json'):
+if args.kgrid is not None:
+    kgrid = args.kgrid
+elif not os.path.exists('kpoint_report.json'):
     kpt_conv = pychemia.code.vasp.task.ConvergenceKPointGrid(structure=st,
                                                              workdir='.',
                                                              executable='vasp_std',

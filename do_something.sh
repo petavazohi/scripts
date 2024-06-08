@@ -5,13 +5,14 @@
 # do
 #     qdel $ijob
 # done
+# export base=$(pwd)
+emacs -nw  icsd_downloads/${1}/${1}_experimental_${2}/${1}_experimental_CollCode${2}.cif icsd_downloads/${1}/${1}_standardized_${2}/${1}_standardized_CollCode${2}.cif
 
-for idir in mp-*
-do
-    rm ${idir}/MBJ/*
-done
+# base="/gpfs20/scratch/petavazohi/PBEvsPBEsol/structures/icsd/icsd_downloads/"
 
+# for idir in ${1}
 
+# mp-634657
 
 
 # mkdir MoS2-bulk
